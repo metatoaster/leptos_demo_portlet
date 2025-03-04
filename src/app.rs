@@ -81,6 +81,57 @@ pub(super) mod server {
 #[cfg(feature = "ssr")]
 use server::*;
 
+pub mod portlets {
+    use super::*;
+    #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+    pub struct NavItem {
+        pub href: String,
+        pub text: String,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+    pub struct NavCtx(pub Option<Vec<NavItem>>);
+
+    impl From<Vec<NavItem>> for NavCtx {
+        fn from(item: Vec<NavItem>) -> Self {
+            Self(Some(item))
+        }
+    }
+
+    #[component]
+    pub fn NavPortlet() -> impl IntoView {
+        let ctx = expect_context::<ReadSignal<Option<NavCtx>>>();
+        move || {
+            let ctx = ctx.get();
+            ctx.map(|ctx| view! {
+                <section id="NavPortlet">
+                    <heading>"Navigation"</heading>
+                    <nav>{
+                        ctx.0.map(|ctx| {
+                            ctx.into_iter()
+                                .map(|NavItem { href, text }| {
+                                    view! {
+                                        <A href=href>{text}</A>
+                                    }
+                                })
+                                .collect_view()
+                        })
+                    }</nav>
+                </section>
+            })
+        }
+    }
+
+    pub fn provide_field_nav_portlet_context() {
+        // wrapping the Ctx in an Option allows better ergonomics whenever it isn't needed
+        let (ctx, set_ctx) = signal(None::<NavCtx>);
+        provide_context(ctx);
+        provide_context(set_ctx);
+    }
+}
+
+use portlets::*;
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
@@ -150,6 +201,7 @@ async fn get_article(id: u32) -> Result<Article, ServerFnError> {
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
+    provide_field_nav_portlet_context();
     let fallback = || view! { "Page not found." }.into_view();
 
     view! {
@@ -165,11 +217,16 @@ pub fn App() -> impl IntoView {
                 </nav>
             </header>
             <main>
-                <Routes fallback>
-                    <Route path=path!("") view=HomePage/>
-                    <AuthorRoutes/>
-                    <ArticleRoutes/>
-                </Routes>
+                <article>
+                    <Routes fallback>
+                        <Route path=path!("") view=HomePage/>
+                        <AuthorRoutes/>
+                        <ArticleRoutes/>
+                    </Routes>
+                </article>
+                <aside>
+                    <NavPortlet/>
+                </aside>
             </main>
         </Router>
     }
@@ -266,8 +323,30 @@ pub fn AuthorTop() -> impl IntoView {
         },
     ));
 
+    on_cleanup(|| {
+        use_context::<WriteSignal<Option<NavCtx>>>()
+            .map(|ctx| ctx.update(|v| *v = None));
+    });
+
+    let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
+    let portlet_hook = move || {
+        Suspend::new(async move {
+            let _ = resource.await.map(|authors| {
+                expect_context::<WriteSignal<Option<NavCtx>>>().set(Some(authors.iter()
+                    .map(|(id, author)| NavItem {
+                        href: format!("/author/{id}/"),
+                        text: author.name.to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .into()
+                ));
+            });
+        })
+    };
+
     view! {
         <h3>"<AuthorTop/>"</h3>
+        <Suspense>{portlet_hook}</Suspense>
         <Outlet/>
     }
 }
@@ -372,8 +451,30 @@ pub fn ArticleTop() -> impl IntoView {
         },
     ));
 
+    on_cleanup(|| {
+        use_context::<WriteSignal<Option<NavCtx>>>()
+            .map(|ctx| ctx.update(|v| *v = None));
+    });
+
+    let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
+    let portlet_hook = move || {
+        Suspend::new(async move {
+            let _ = resource.await.map(|articles| {
+                expect_context::<WriteSignal<Option<NavCtx>>>().set(Some(articles.iter()
+                    .map(|(id, article)| NavItem {
+                        href: format!("/article/{id}/"),
+                        text: article.title.to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .into()
+                ));
+            });
+        })
+    };
+
     view! {
         <h3>"<ArticleTop/>"</h3>
+        <Suspense>{portlet_hook}</Suspense>
         <Outlet/>
     }
 }
