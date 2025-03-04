@@ -101,24 +101,30 @@ pub mod portlets {
     #[component]
     pub fn NavPortlet() -> impl IntoView {
         let ctx = expect_context::<ReadSignal<Option<NavCtx>>>();
-        move || {
-            let ctx = ctx.get();
-            ctx.map(|ctx| view! {
-                <section id="NavPortlet">
-                    <heading>"Navigation"</heading>
-                    <nav>{
-                        ctx.0.map(|ctx| {
-                            ctx.into_iter()
-                                .map(|NavItem { href, text }| {
-                                    view! {
-                                        <A href=href>{text}</A>
-                                    }
-                                })
-                                .collect_view()
-                        })
-                    }</nav>
-                </section>
+        let portlet = move || {
+            Suspend::new(async move {
+                let ctx = ctx.get();
+                ctx.map(|ctx| view! {
+                    <section id="NavPortlet">
+                        <heading>"Navigation"</heading>
+                        <nav>{
+                            ctx.0.map(|ctx| {
+                                ctx.into_iter()
+                                    .map(|NavItem { href, text }| {
+                                        view! {
+                                            <A href=href>{text}</A>
+                                        }
+                                    })
+                                    .collect_view()
+                            })
+                        }</nav>
+                    </section>
+                })
             })
+        };
+
+        view! {
+            <Suspense>{portlet}</Suspense>
         }
     }
 
