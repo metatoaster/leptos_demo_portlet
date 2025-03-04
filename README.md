@@ -6,4 +6,10 @@ relevant signals.
 
 ## Quick Start
 
-Run `cargo leptos watch` to run this example.
+This demo is implemented in a way that integrates both axum and actix
+as options that may be toggled using ``--bin-features`` flag.
+
+Run:
+
+- `cargo leptos watch --bin-features axum` to serve using axum.
+- `cargo leptos watch --bin-features actix` to serve using actix.

@@ -254,9 +254,9 @@ pub fn HomePage() -> impl IntoView {
 pub fn AuthorRoutes() -> impl MatchNestedRoutes + Clone {
     view! {
         <ParentRoute path=StaticSegment("author") view=AuthorContainer ssr=SsrMode::Async>
-            <Route path=StaticSegment("") view=AuthorListing/>
+            <Route path=StaticSegment("/") view=AuthorListing/>
             <ParentRoute path=ParamSegment("name") view=AuthorTop>
-                <Route path=StaticSegment("") view=AuthorOverview/>
+                <Route path=StaticSegment("/") view=AuthorOverview/>
                 <Route path=StaticSegment("articles") view=ArticleListing/>
             </ParentRoute>
         </ParentRoute>
@@ -373,7 +373,7 @@ pub fn AuthorOverview() -> impl IntoView {
                         <dd>{author.email}</dd>
                     </dl>
                     <ul>
-                        <li><A href="articles">"Articles by this author"</A></li>
+                        <li><a href="articles">"Articles by this author"</a></li>
                     </ul>
                 }
             )
@@ -390,9 +390,9 @@ pub fn AuthorOverview() -> impl IntoView {
 pub fn ArticleRoutes() -> impl MatchNestedRoutes + Clone {
     view! {
         <ParentRoute path=StaticSegment("article") view=ArticleContainer ssr=SsrMode::Async>
-            <Route path=StaticSegment("") view=ArticleListing/>
+            <Route path=StaticSegment("/") view=ArticleListing/>
             <ParentRoute path=ParamSegment("id") view=ArticleTop>
-                <Route path=StaticSegment("") view=ArticleView/>
+                <Route path=StaticSegment("/") view=ArticleView/>
                 <Route path=StaticSegment("comments") view=ArticleComments/>
                 <Route path=StaticSegment("history") view=ArticleHistory/>
             </ParentRoute>
@@ -502,8 +502,8 @@ pub fn ArticleView() -> impl IntoView {
                         </dd>
                     </dl>
                     <ul>
-                        <li><A href="comments">"Comments"</A></li>
-                        <li><A href="history">"Article History"</A></li>
+                        <li><a href="comments">"Comments"</a></li>
+                        <li><a href="history">"Article History"</a></li>
                     </ul>
                 }
             })
