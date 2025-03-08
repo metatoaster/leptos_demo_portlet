@@ -329,16 +329,14 @@ pub fn AuthorTop() -> impl IntoView {
         },
     ));
 
-    on_cleanup(|| {
-        use_context::<WriteSignal<Option<NavCtx>>>()
-            .map(|ctx| ctx.update(|v| *v = None));
-    });
+    let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    on_cleanup(move || nav_ctx.update(|v| *v = None));
 
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let portlet_hook = move || {
         Suspend::new(async move {
             let _ = resource.await.map(|authors| {
-                expect_context::<WriteSignal<Option<NavCtx>>>().set(Some(authors.iter()
+                nav_ctx.set(Some(authors.iter()
                     .map(|(id, author)| NavItem {
                         href: format!("/author/{id}/"),
                         text: author.name.to_string(),
@@ -457,16 +455,14 @@ pub fn ArticleTop() -> impl IntoView {
         },
     ));
 
-    on_cleanup(|| {
-        use_context::<WriteSignal<Option<NavCtx>>>()
-            .map(|ctx| ctx.update(|v| *v = None));
-    });
+    let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    on_cleanup(move || nav_ctx.update(|v| *v = None));
 
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let portlet_hook = move || {
         Suspend::new(async move {
             let _ = resource.await.map(|articles| {
-                expect_context::<WriteSignal<Option<NavCtx>>>().set(Some(articles.iter()
+                nav_ctx.set(Some(articles.iter()
                     .map(|(id, article)| NavItem {
                         href: format!("/article/{id}/"),
                         text: article.title.to_string(),
