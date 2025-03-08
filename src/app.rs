@@ -100,23 +100,21 @@ pub mod portlets {
 
     #[component]
     pub fn NavPortlet() -> impl IntoView {
-        let ctx = expect_context::<ReadSignal<Option<NavCtx>>>();
+        let rs = expect_context::<ReadSignal<NavCtx>>();
         let portlet = move || {
             Suspend::new(async move {
-                let ctx = ctx.get();
-                ctx.map(|ctx| view! {
+                let nav_ctx = rs.get();
+                nav_ctx.0.map(|items| view! {
                     <section id="NavPortlet">
                         <heading>"Navigation"</heading>
                         <nav>{
-                            ctx.0.map(|ctx| {
-                                ctx.into_iter()
-                                    .map(|NavItem { href, text }| {
-                                        view! {
-                                            <A href=href>{text}</A>
-                                        }
-                                    })
-                                    .collect_view()
-                            })
+                            items.into_iter()
+                                .map(|NavItem { href, text }| {
+                                    view! {
+                                        <A href=href>{text}</A>
+                                    }
+                                })
+                                .collect_view()
                         }</nav>
                     </section>
                 })
@@ -129,10 +127,9 @@ pub mod portlets {
     }
 
     pub fn provide_field_nav_portlet_context() {
-        // wrapping the Ctx in an Option allows better ergonomics whenever it isn't needed
-        let (ctx, set_ctx) = signal(None::<NavCtx>);
-        provide_context(ctx);
-        provide_context(set_ctx);
+        let (rs, ws) = signal(NavCtx(None));
+        provide_context(rs);
+        provide_context(ws);
     }
 }
 
@@ -329,23 +326,23 @@ pub fn AuthorTop() -> impl IntoView {
         },
     ));
 
-    let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    let ws = expect_context::<WriteSignal<NavCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
     #[cfg(not(feature = "axum"))]
-    on_cleanup(move || nav_ctx.update(|v| *v = None));
+    on_cleanup(move || ws.set(NavCtx(None)));
 
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let portlet_hook = move || {
         Suspend::new(async move {
             let _ = resource.await.map(|authors| {
-                nav_ctx.set(Some(authors.iter()
+                ws.set(authors.iter()
                     .map(|(id, author)| NavItem {
                         href: format!("/author/{id}/"),
                         text: author.name.to_string(),
                     })
                     .collect::<Vec<_>>()
                     .into()
-                ));
+                );
             });
         })
     };
@@ -457,23 +454,23 @@ pub fn ArticleTop() -> impl IntoView {
         },
     ));
 
-    let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    let ws = expect_context::<WriteSignal<NavCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
     #[cfg(not(feature = "axum"))]
-    on_cleanup(move || nav_ctx.update(|v| *v = None));
+    on_cleanup(move || ws.set(NavCtx(None)));
 
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let portlet_hook = move || {
         Suspend::new(async move {
             let _ = resource.await.map(|articles| {
-                nav_ctx.set(Some(articles.iter()
+                ws.set(articles.iter()
                     .map(|(id, article)| NavItem {
                         href: format!("/article/{id}/"),
                         text: article.title.to_string(),
                     })
                     .collect::<Vec<_>>()
                     .into()
-                ));
+                );
             });
         })
     };
