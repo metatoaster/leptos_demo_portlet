@@ -330,6 +330,8 @@ pub fn AuthorTop() -> impl IntoView {
     ));
 
     let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    // disabling under axum until leptos-rs/leptos#3687 lands
+    #[cfg(not(feature = "axum"))]
     on_cleanup(move || nav_ctx.update(|v| *v = None));
 
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
@@ -456,6 +458,8 @@ pub fn ArticleTop() -> impl IntoView {
     ));
 
     let nav_ctx = expect_context::<WriteSignal<Option<NavCtx>>>();
+    // disabling under axum until leptos-rs/leptos#3687 lands
+    #[cfg(not(feature = "axum"))]
     on_cleanup(move || nav_ctx.update(|v| *v = None));
 
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
