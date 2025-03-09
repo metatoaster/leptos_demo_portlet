@@ -137,9 +137,10 @@ pub mod portlets {
         view! {
             <Suspense>{move || Suspend::new(async move {
                 let nav_ctx = rs.get();
+                leptos::logging::log!("nav_ctx = {nav_ctx:?}");
                 if let Some(resource) = nav_ctx.0 {
-                    let items = resource.await.ok()?;
-                    Some(view! {
+                    let items = resource.await?;
+                    Ok::<_, ServerFnError>(view! {
                         <section id="NavPortlet">
                             <heading>"Navigation"</heading>
                             <nav>{
@@ -152,11 +153,14 @@ pub mod portlets {
                                     .collect_view()
                             }</nav>
                         </section>
-                    })
+                    }.into_any())
                 } else {
-                    // TODO support rendering an error in the event the
-                    // portlet has errored
-                    None
+                    leptos::logging::log!("returning empty view");
+                    // XXX somehow this dummy value works around the hydration
+                    // error?
+                    Ok::<_, ServerFnError>(view! {
+                        <div></div>
+                    }.into_any())
                 }
             })}</Suspense>
         }
