@@ -12,13 +12,13 @@ use leptos_router::{
     ParamSegment,
 };
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Author {
     pub name: String,
     pub email: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Article {
     pub author_name: String,
     pub title: String,
@@ -83,51 +83,87 @@ use server::*;
 
 pub mod portlets {
     use super::*;
+
+    #[derive(Clone, Debug, Default)]
+    pub struct PortletCtx<
+        T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + PartialEq
+        + Send
+        + Sync
+        + 'static
+    >(Option<Resource<Result<T, ServerFnError>>>);
+
+    impl<
+        T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + PartialEq
+        + Send
+        + Sync
+        + 'static
+    > PortletCtx<T> {
+        /// Clear the resource in the portlet.  The component using this
+        /// may decide to not render anything.
+        pub fn clear(&mut self) {
+            self.0 = None;
+        }
+
+        /// Set the resource for this portlet.
+        pub fn set(&mut self, value: Resource<Result<T, ServerFnError>>) {
+            self.0 = Some(value);
+        }
+
+        /// Replace the inner value for this ctx.
+        pub fn replace(&mut self, value: Self) {
+            self.0 = value.0;
+        }
+    }
+
+
     #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
     pub struct NavItem {
         pub href: String,
         pub text: String,
     }
 
-    #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
-    pub struct NavCtx(pub Option<Vec<NavItem>>);
-
-    impl From<Vec<NavItem>> for NavCtx {
-        fn from(item: Vec<NavItem>) -> Self {
-            Self(Some(item))
-        }
-    }
+    pub type NavPortletCtx = PortletCtx<Vec<NavItem>>;
 
     #[component]
     pub fn NavPortlet() -> impl IntoView {
-        let rs = expect_context::<ReadSignal<NavCtx>>();
-        let portlet = move || {
-            Suspend::new(async move {
-                let nav_ctx = rs.get();
-                nav_ctx.0.map(|items| view! {
-                    <section id="NavPortlet">
-                        <heading>"Navigation"</heading>
-                        <nav>{
-                            items.into_iter()
-                                .map(|NavItem { href, text }| {
-                                    view! {
-                                        <A href=href>{text}</A>
-                                    }
-                                })
-                                .collect_view()
-                        }</nav>
-                    </section>
-                })
-            })
-        };
+        let rs = expect_context::<ReadSignal<NavPortletCtx>>();
 
         view! {
-            <Suspense>{portlet}</Suspense>
+            <Suspense>{move || Suspend::new(async move {
+                let nav_ctx = rs.get();
+                if let Some(resource) = nav_ctx.0 {
+                    let items = resource.await.ok()?;
+                    Some(view! {
+                        <section id="NavPortlet">
+                            <heading>"Navigation"</heading>
+                            <nav>{
+                                items.into_iter()
+                                    .map(|NavItem { href, text }| {
+                                        view! {
+                                            <A href=href>{text}</A>
+                                        }
+                                    })
+                                    .collect_view()
+                            }</nav>
+                        </section>
+                    })
+                } else {
+                    // TODO support rendering an error in the event the
+                    // portlet has errored
+                    None
+                }
+            })}</Suspense>
         }
     }
 
     pub fn provide_field_nav_portlet_context() {
-        let (rs, ws) = signal(NavCtx(None));
+        let (rs, ws) = signal(NavPortletCtx::default());
         provide_context(rs);
         provide_context(ws);
     }
@@ -326,30 +362,32 @@ pub fn AuthorTop() -> impl IntoView {
         },
     ));
 
-    let ws = expect_context::<WriteSignal<NavCtx>>();
+    let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
     #[cfg(not(feature = "axum"))]
-    on_cleanup(move || ws.set(NavCtx(None)));
+    on_cleanup(move || ws.update(|c| c.clear()));
 
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
-    let portlet_hook = move || {
-        Suspend::new(async move {
-            let _ = resource.await.map(|authors| {
-                ws.set(authors.iter()
-                    .map(|(id, author)| NavItem {
-                        href: format!("/author/{id}/"),
-                        text: author.name.to_string(),
-                    })
-                    .collect::<Vec<_>>()
-                    .into()
-                );
-            });
-        })
-    };
+    ws.update(move |c| {
+        c.set(
+            Resource::new_blocking(
+                || (),
+                move |_| async move {
+                    resource.await.map(|authors| authors
+                        .into_iter()
+                        .map(move |(id, author)| NavItem {
+                            href: format!("/author/{id}/"),
+                            text: author.name.to_string(),
+                        })
+                        .collect::<Vec<_>>()
+                    )
+                },
+            )
+        )
+    });
 
     view! {
         <h3>"<AuthorTop/>"</h3>
-        <Suspense>{portlet_hook}</Suspense>
         <Outlet/>
     }
 }
@@ -454,30 +492,33 @@ pub fn ArticleTop() -> impl IntoView {
         },
     ));
 
-    let ws = expect_context::<WriteSignal<NavCtx>>();
+    let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
     #[cfg(not(feature = "axum"))]
-    on_cleanup(move || ws.set(NavCtx(None)));
+    on_cleanup(move || ws.update(|c| c.clear()));
 
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
-    let portlet_hook = move || {
-        Suspend::new(async move {
-            let _ = resource.await.map(|articles| {
-                ws.set(articles.iter()
-                    .map(|(id, article)| NavItem {
-                        href: format!("/article/{id}/"),
-                        text: article.title.to_string(),
+    ws.update(move |c| {
+        c.set(
+            Resource::new_blocking(
+                || (),
+                move |_| async move {
+                    resource.await.map(|articles| {
+                        articles.iter()
+                            .map(|(id, article)| NavItem {
+                                href: format!("/article/{id}/"),
+                                text: article.title.to_string(),
+                            })
+                        .collect::<Vec<_>>()
+                        .into()
                     })
-                    .collect::<Vec<_>>()
-                    .into()
-                );
-            });
-        })
-    };
+                },
+            )
+        )
+    });
 
     view! {
         <h3>"<ArticleTop/>"</h3>
-        <Suspense>{portlet_hook}</Suspense>
         <Outlet/>
     }
 }
