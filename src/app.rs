@@ -220,6 +220,9 @@ pub fn App() -> impl IntoView {
                 </nav>
             </header>
             <main>
+                <aside>
+                    <NavPortlet/>
+                </aside>
                 <article>
                     <Routes fallback>
                         <Route path=path!("") view=HomePage/>
@@ -227,9 +230,6 @@ pub fn App() -> impl IntoView {
                         <ArticleRoutes/>
                     </Routes>
                 </article>
-                <aside>
-                    <NavPortlet/>
-                </aside>
             </main>
         </Router>
     }
