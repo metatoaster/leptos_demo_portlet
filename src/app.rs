@@ -439,9 +439,6 @@ pub fn AuthorTop() -> impl IntoView {
     ));
 
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
-    // disabling under axum until leptos-rs/leptos#3687 lands
-    // #[cfg(not(feature = "axum"))]
-    // on_cleanup(move || ws.update(|c| c.clear()));
     on_cleanup(move || {
         Effect::new(move || {
             leptos::logging::log!("Running cleanup of porlet for ArticleTop");
@@ -577,9 +574,6 @@ pub fn ArticleTop() -> impl IntoView {
     ));
 
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
-    // disabling under axum until leptos-rs/leptos#3687 lands
-    // #[cfg(not(feature = "axum"))]
-    // on_cleanup(move || ws.update(|c| c.clear()));
     on_cleanup(move || {
         Effect::new(move || {
             leptos::logging::log!("Running cleanup of porlet for ArticleTop");
