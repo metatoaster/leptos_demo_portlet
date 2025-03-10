@@ -92,9 +92,10 @@ pub mod portlets {
         + PartialEq
         + Send
         + Sync
+        + IntoRender
         + 'static
     > {
-        pub inner: Option<Resource<Result<T, ServerFnError>>>,
+        pub inner: Option<ArcResource<Result<T, ServerFnError>>>,
     }
 
     impl<
@@ -104,6 +105,7 @@ pub mod portlets {
         + PartialEq
         + Send
         + Sync
+        + IntoRender
         + 'static
     > PortletCtx<T> {
         /// Clear the resource in the portlet.  The component using this
@@ -114,12 +116,81 @@ pub mod portlets {
         }
 
         /// Set the resource for this portlet.
-        pub fn set(&mut self, value: Resource<Result<T, ServerFnError>>) {
+        pub fn set(&mut self, value: ArcResource<Result<T, ServerFnError>>) {
             leptos::logging::log!("PortletCtx set");
             self.inner = Some(value);
         }
+
+        pub fn provide() {
+            let (rs, ws) = signal(PortletCtx::<T> { inner: None });
+            provide_context(rs);
+            provide_context(ws);
+        }
     }
 
+    #[derive(Clone)]
+    pub struct PortletCtxRenderer<
+        T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + PartialEq
+        + Send
+        + Sync
+        + IntoRender
+        + 'static
+    >(ReadSignal<PortletCtx<T>>);
+
+    impl<
+        T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + PartialEq
+        + Send
+        + Sync
+        + IntoRender
+        + 'static
+    > From<ReadSignal<PortletCtx<T>>> for PortletCtxRenderer<T> {
+        fn from(value: ReadSignal<PortletCtx<T>>) -> Self {
+            Self(value)
+        }
+    }
+
+    impl<
+        T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + std::fmt::Debug
+        + PartialEq
+        + Send
+        + Sync
+        + IntoRender
+        + 'static
+    > IntoRender for PortletCtxRenderer<T>
+    where
+        <T as leptos::prelude::IntoRender>::Output: RenderHtml,
+    {
+        type Output = Suspend<Result<AnyView, ServerFnError>>;
+
+        fn into_render(self) -> Self::Output {
+            Suspend::new(async move {
+                let ctx = self.0.get();
+                leptos::logging::log!("portlet_ctx = {ctx:?}");
+                if let Some(resource) = ctx.inner {
+                    Ok::<_, ServerFnError>(resource.await?
+                        .into_render()
+                        .into_any()
+                    )
+                } else {
+                    leptos::logging::log!("returning empty view");
+                    // XXX somehow this dummy value works around the hydration
+                    // error?
+                    Ok::<_, ServerFnError>(view! {
+                        <noscript></noscript>
+                    }.into_any())
+                }
+            })
+        }
+    }
 
     #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
     pub struct NavItem {
@@ -127,48 +198,49 @@ pub mod portlets {
         pub text: String,
     }
 
-    pub type NavPortletCtx = PortletCtx<Vec<NavItem>>;
+    #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+    pub struct NavItems(Vec<NavItem>);
 
-    #[component]
-    pub fn NavPortlet() -> impl IntoView {
-        let rs = expect_context::<ReadSignal<NavPortletCtx>>();
-
-        view! {
-            <Transition>{move || Suspend::new(async move {
-                let nav_ctx = rs.get();
-                leptos::logging::log!("nav_ctx = {nav_ctx:?}");
-                if let Some(resource) = nav_ctx.inner {
-                    let items = resource.await?;
-                    Ok::<_, ServerFnError>(view! {
-                        <section id="NavPortlet">
-                            <heading>"Navigation"</heading>
-                            <nav>{
-                                items.into_iter()
-                                    .map(|NavItem { href, text }| {
-                                        view! {
-                                            <A href=href>{text}</A>
-                                        }
-                                    })
-                                    .collect_view()
-                            }</nav>
-                        </section>
-                    }.into_any())
-                } else {
-                    leptos::logging::log!("returning empty view");
-                    // XXX somehow this dummy value works around the hydration
-                    // error?
-                    Ok::<_, ServerFnError>(view! {
-                        <div></div>
-                    }.into_any())
-                }
-            })}</Transition>
+    impl From<Vec<NavItem>> for NavItems {
+        fn from(value: Vec<NavItem>) -> Self {
+            Self(value)
         }
     }
 
-    pub fn provide_field_nav_portlet_context() {
-        let (rs, ws) = signal(NavPortletCtx::default());
-        provide_context(rs);
-        provide_context(ws);
+    impl NavItems {
+        pub fn into_inner(self) -> Vec<NavItem> {
+            self.0
+        }
+    }
+
+    pub type NavPortletCtx = PortletCtx<NavItems>;
+
+    impl IntoRender for NavItems {
+        type Output = AnyView;
+
+        fn into_render(self) -> Self::Output {
+            view! {
+                <section id="NavPortlet">
+                    <heading>"Navigation"</heading>
+                    <nav>{
+                        self.into_inner()
+                            .into_iter()
+                            .map(|NavItem { href, text }| {
+                                view! {
+                                    <A href=href>{text}</A>
+                                }
+                            })
+                            .collect_view()
+                    }</nav>
+                </section>
+            }.into_any()
+        }
+    }
+
+    #[component]
+    pub fn NavPortlet() -> impl IntoView {
+        let rs = PortletCtxRenderer::from(expect_context::<ReadSignal<NavPortletCtx>>());
+        view! { <Transition>{move || rs.clone().into_render()}</Transition> }
     }
 }
 
@@ -243,7 +315,8 @@ async fn get_article(id: u32) -> Result<Article, ServerFnError> {
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
-    provide_field_nav_portlet_context();
+    // provide_field_nav_portlet_context();
+    NavPortletCtx::provide();
     let fallback = || view! { "Page not found." }.into_view();
 
     view! {
@@ -380,7 +453,7 @@ pub fn AuthorTop() -> impl IntoView {
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for AuthorTop");
         c.set(
-            Resource::new_blocking(
+            ArcResource::new_blocking(
                 || (),
                 move |_| async move {
                     resource.await.map(|authors| authors
@@ -390,6 +463,7 @@ pub fn AuthorTop() -> impl IntoView {
                             text: author.name.to_string(),
                         })
                         .collect::<Vec<_>>()
+                        .into()
                     )
                 },
             )
@@ -517,7 +591,7 @@ pub fn ArticleTop() -> impl IntoView {
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for ArticleTop");
         c.set(
-            Resource::new_blocking(
+            ArcResource::new_blocking(
                 || (),
                 move |_| async move {
                     resource.await.map(|articles| {
