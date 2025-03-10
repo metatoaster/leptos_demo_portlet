@@ -1,7 +1,12 @@
 use leptos::prelude::*;
 
 #[derive(Clone, Debug, Default)]
-pub struct PortletCtx<
+pub struct PortletCtx<T> {
+    inner: Option<ArcResource<Result<T, ServerFnError>>>,
+}
+
+impl<T> PortletCtx<T>
+where
     T: serde::Serialize
         + serde::de::DeserializeOwned
         + Clone
@@ -10,20 +15,6 @@ pub struct PortletCtx<
         + Sync
         + IntoRender
         + 'static,
-> {
-    inner: Option<ArcResource<Result<T, ServerFnError>>>,
-}
-
-impl<
-        T: serde::Serialize
-            + serde::de::DeserializeOwned
-            + Clone
-            + PartialEq
-            + Send
-            + Sync
-            + IntoRender
-            + 'static,
-    > PortletCtx<T>
 {
     /// Clear the resource in the portlet.  The component using this
     /// may decide to not render anything.
@@ -50,45 +41,25 @@ impl<
 }
 
 #[derive(Clone)]
-pub struct PortletCtxRenderer<
-    T: serde::Serialize
-        + serde::de::DeserializeOwned
-        + Clone
-        + PartialEq
-        + Send
-        + Sync
-        + IntoRender
-        + 'static,
->(ReadSignal<PortletCtx<T>>);
+pub struct PortletCtxRenderer<T>(ReadSignal<PortletCtx<T>>);
 
-impl<
-        T: serde::Serialize
-            + serde::de::DeserializeOwned
-            + Clone
-            + PartialEq
-            + Send
-            + Sync
-            + IntoRender
-            + 'static,
-    > From<ReadSignal<PortletCtx<T>>> for PortletCtxRenderer<T>
-{
+impl<T> From<ReadSignal<PortletCtx<T>>> for PortletCtxRenderer<T> {
     fn from(value: ReadSignal<PortletCtx<T>>) -> Self {
         Self(value)
     }
 }
 
-impl<
-        T: serde::Serialize
-            + serde::de::DeserializeOwned
-            + Clone
-            + std::fmt::Debug
-            + PartialEq
-            + Send
-            + Sync
-            + IntoRender
-            + 'static,
-    > IntoRender for PortletCtxRenderer<T>
+impl<T> IntoRender for PortletCtxRenderer<T>
 where
+    T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + std::fmt::Debug
+        + PartialEq
+        + Send
+        + Sync
+        + IntoRender
+        + 'static,
     <T as leptos::prelude::IntoRender>::Output: RenderHtml,
 {
     type Output = Suspend<Result<AnyView, ServerFnError>>;
