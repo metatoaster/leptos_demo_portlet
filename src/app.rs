@@ -93,7 +93,9 @@ pub mod portlets {
         + Send
         + Sync
         + 'static
-    >(Option<Resource<Result<T, ServerFnError>>>);
+    > {
+        pub inner: Option<Resource<Result<T, ServerFnError>>>,
+    }
 
     impl<
         T: serde::Serialize
@@ -107,17 +109,14 @@ pub mod portlets {
         /// Clear the resource in the portlet.  The component using this
         /// may decide to not render anything.
         pub fn clear(&mut self) {
-            self.0 = None;
+            leptos::logging::log!("PortletCtx clear");
+            self.inner = None;
         }
 
         /// Set the resource for this portlet.
         pub fn set(&mut self, value: Resource<Result<T, ServerFnError>>) {
-            self.0 = Some(value);
-        }
-
-        /// Replace the inner value for this ctx.
-        pub fn replace(&mut self, value: Self) {
-            self.0 = value.0;
+            leptos::logging::log!("PortletCtx set");
+            self.inner = Some(value);
         }
     }
 
@@ -135,10 +134,10 @@ pub mod portlets {
         let rs = expect_context::<ReadSignal<NavPortletCtx>>();
 
         view! {
-            <Suspense>{move || Suspend::new(async move {
+            <Transition>{move || Suspend::new(async move {
                 let nav_ctx = rs.get();
                 leptos::logging::log!("nav_ctx = {nav_ctx:?}");
-                if let Some(resource) = nav_ctx.0 {
+                if let Some(resource) = nav_ctx.inner {
                     let items = resource.await?;
                     Ok::<_, ServerFnError>(view! {
                         <section id="NavPortlet">
@@ -162,7 +161,7 @@ pub mod portlets {
                         <div></div>
                     }.into_any())
                 }
-            })}</Suspense>
+            })}</Transition>
         }
     }
 
