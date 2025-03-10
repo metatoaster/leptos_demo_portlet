@@ -368,11 +368,18 @@ pub fn AuthorTop() -> impl IntoView {
 
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
-    #[cfg(not(feature = "axum"))]
-    on_cleanup(move || ws.update(|c| c.clear()));
+    // #[cfg(not(feature = "axum"))]
+    // on_cleanup(move || ws.update(|c| c.clear()));
+    on_cleanup(move || {
+        Effect::new(move || {
+            leptos::logging::log!("Running cleanup of porlet for ArticleTop");
+            ws.update(|c| c.clear());
+        });
+    });
 
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     ws.update(move |c| {
+        leptos::logging::log!("Updating resource for AuthorTop");
         c.set(
             Resource::new_blocking(
                 || (),
@@ -498,11 +505,18 @@ pub fn ArticleTop() -> impl IntoView {
 
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     // disabling under axum until leptos-rs/leptos#3687 lands
-    #[cfg(not(feature = "axum"))]
-    on_cleanup(move || ws.update(|c| c.clear()));
+    // #[cfg(not(feature = "axum"))]
+    // on_cleanup(move || ws.update(|c| c.clear()));
+    on_cleanup(move || {
+        Effect::new(move || {
+            leptos::logging::log!("Running cleanup of porlet for ArticleTop");
+            ws.update(|c| c.clear());
+        });
+    });
 
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     ws.update(move |c| {
+        leptos::logging::log!("Updating resource for ArticleTop");
         c.set(
             Resource::new_blocking(
                 || (),
