@@ -1,15 +1,11 @@
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, *};
 use leptos_router::{
-    components::{A, Routes, Route, Router, ParentRoute},
+    components::{ParentRoute, Route, Router, Routes, A},
     hooks::use_params,
     nested_router::Outlet,
     params::Params,
-    path,
-    MatchNestedRoutes,
-    SsrMode,
-    StaticSegment,
-    ParamSegment,
+    path, MatchNestedRoutes, ParamSegment, SsrMode, StaticSegment,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
@@ -26,14 +22,8 @@ pub struct Article {
 
 #[cfg(feature = "ssr")]
 pub(super) mod server {
-    use std::{
-        collections::HashMap,
-        sync::LazyLock,
-    };
-    use super::{
-        Article,
-        Author,
-    };
+    use super::{Article, Author};
+    use std::{collections::HashMap, sync::LazyLock};
 
     impl From<(&'static str, &'static str)> for Author {
         fn from((name, email): (&'static str, &'static str)) -> Self {
@@ -64,18 +54,20 @@ pub(super) mod server {
         ])
     });
 
-    pub static ARTICLES: LazyLock<Vec<Article>> = LazyLock::new(|| vec![
-        ("dorothy", "The top twenty...").into(),
-        ("albert", "On the practical nature of...").into(),
-        ("bethany", "How to guide to...").into(),
-        ("dorothy", "The top ten...").into(),
-        ("albert", "Why a city's infrastructure...").into(),
-        ("bethany", "The ultimate guide to...").into(),
-        ("dorothy", "The top hundred...").into(),
-        ("carl", "A quick summary on...").into(),
-        ("dorothy", "The top thousand...").into(),
-        ("bethany", "Beware of...").into(),
-    ]);
+    pub static ARTICLES: LazyLock<Vec<Article>> = LazyLock::new(|| {
+        vec![
+            ("dorothy", "The top twenty...").into(),
+            ("albert", "On the practical nature of...").into(),
+            ("bethany", "How to guide to...").into(),
+            ("dorothy", "The top ten...").into(),
+            ("albert", "Why a city's infrastructure...").into(),
+            ("bethany", "The ultimate guide to...").into(),
+            ("dorothy", "The top hundred...").into(),
+            ("carl", "A quick summary on...").into(),
+            ("dorothy", "The top thousand...").into(),
+            ("bethany", "Beware of...").into(),
+        ]
+    });
 }
 
 #[cfg(feature = "ssr")]
@@ -126,7 +118,8 @@ pub mod navigation {
                             .collect_view()
                     }</nav>
                 </section>
-            }.into_any()
+            }
+            .into_any()
         }
     }
 
@@ -197,9 +190,7 @@ async fn list_articles_by_author(name: String) -> Result<Vec<(u32, Article)>, Se
 async fn get_article(id: u32) -> Result<Article, ServerFnError> {
     tokio::time::sleep(std::time::Duration::from_millis(TIMEOUT)).await;
     id.checked_sub(1)
-        .map(|idx| ARTICLES
-            .get(idx as usize)
-            .map(Article::clone))
+        .map(|idx| ARTICLES.get(idx as usize).map(Article::clone))
         .flatten()
         .ok_or_else(|| ServerFnError::ServerError(format!("no such article: {id}")))
 }
@@ -284,15 +275,16 @@ pub fn AuthorListing() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let author_listing = move || {
         Suspend::new(async move {
-            resource.await.map(|authors| authors
-                .into_iter()
-                .map(move |(id, author)|
-                    view! {
-                        <li><a href=format!("/author/{id}/")>{author.name}</a></li>
-                    }
-                )
-                .collect_view()
-            )
+            resource.await.map(|authors| {
+                authors
+                    .into_iter()
+                    .map(move |(id, author)| {
+                        view! {
+                            <li><a href=format!("/author/{id}/")>{author.name}</a></li>
+                        }
+                    })
+                    .collect_view()
+            })
         })
     };
 
@@ -317,7 +309,7 @@ pub fn AuthorTop() -> impl IntoView {
         move |name| async move {
             match name {
                 Ok(Some(name)) => get_author(name).await,
-                _ => Err(ServerFnError::ServerError(format!("parameter error"))),
+                _ => Err(ServerFnError::ServerError("parameter error".to_string())),
             }
         },
     ));
@@ -326,7 +318,7 @@ pub fn AuthorTop() -> impl IntoView {
         move |name| async move {
             match name {
                 Ok(Some(name)) => list_articles_by_author(name).await,
-                _ => Err(ServerFnError::ServerError(format!("parameter error"))),
+                _ => Err(ServerFnError::ServerError("parameter error".to_string())),
             }
         },
     ));
@@ -342,11 +334,11 @@ pub fn AuthorTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for AuthorTop");
-        c.set(
-            ArcResource::new_blocking(
-                || (),
-                move |_| async move {
-                    resource.await.map(|authors| authors
+        c.set(ArcResource::new_blocking(
+            || (),
+            move |_| async move {
+                resource.await.map(|authors| {
+                    authors
                         .into_iter()
                         .map(move |(id, author)| NavItem {
                             href: format!("/author/{id}/"),
@@ -354,10 +346,9 @@ pub fn AuthorTop() -> impl IntoView {
                         })
                         .collect::<Vec<_>>()
                         .into()
-                    )
-                },
-            )
-        )
+                })
+            },
+        ))
     });
 
     view! {
@@ -371,7 +362,7 @@ pub fn AuthorOverview() -> impl IntoView {
     let resource = expect_context::<Resource<Result<(String, Author), ServerFnError>>>();
     let author = move || {
         Suspend::new(async move {
-            resource.await.map(move |(id, author)|
+            resource.await.map(move |(id, author)| {
                 view! {
                     <dl>
                         <dt>"ID:"</dt>
@@ -385,7 +376,7 @@ pub fn AuthorOverview() -> impl IntoView {
                         <li><a href="articles">"Articles by this author"</a></li>
                     </ul>
                 }
-            )
+            })
         })
     };
 
@@ -428,15 +419,16 @@ pub fn ArticleListing() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let article_listing = move || {
         Suspend::new(async move {
-            resource.await.map(|articles|
-                articles.into_iter()
-                    .map(move |(id, article)|
+            resource.await.map(|articles| {
+                articles
+                    .into_iter()
+                    .map(move |(id, article)| {
                         view! {
                             <li><a href=format!("/article/{id}/")>{article.title}</a></li>
                         }
-                    )
+                    })
                     .collect_view()
-            )
+            })
         })
     };
 
@@ -461,7 +453,7 @@ pub fn ArticleTop() -> impl IntoView {
         move |id| async move {
             match id {
                 Ok(Some(id)) => get_article(id).await,
-                _ => Err(ServerFnError::ServerError(format!("parameter error"))),
+                _ => Err(ServerFnError::ServerError("parameter error".to_string())),
             }
         },
     ));
@@ -477,22 +469,21 @@ pub fn ArticleTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for ArticleTop");
-        c.set(
-            ArcResource::new_blocking(
-                || (),
-                move |_| async move {
-                    resource.await.map(|articles| {
-                        articles.iter()
-                            .map(|(id, article)| NavItem {
-                                href: format!("/article/{id}/"),
-                                text: article.title.to_string(),
-                            })
+        c.set(ArcResource::new_blocking(
+            || (),
+            move |_| async move {
+                resource.await.map(|articles| {
+                    articles
+                        .iter()
+                        .map(|(id, article)| NavItem {
+                            href: format!("/article/{id}/"),
+                            text: article.title.to_string(),
+                        })
                         .collect::<Vec<_>>()
                         .into()
-                    })
-                },
-            )
-        )
+                })
+            },
+        ))
     });
 
     view! {
@@ -537,12 +528,12 @@ pub fn ArticleComments() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Article, ServerFnError>>>();
     let article = move || {
         Suspend::new(async move {
-            resource.await.map(move |article|
+            resource.await.map(move |article| {
                 view! {
                     <h5>"Comments on article: "{article.title}</h5>
                     <p><A href="..">"Back to article"</A></p>
                 }
-            )
+            })
         })
     };
 
@@ -557,12 +548,12 @@ pub fn ArticleHistory() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Article, ServerFnError>>>();
     let article = move || {
         Suspend::new(async move {
-            resource.await.map(move |article|
+            resource.await.map(move |article| {
                 view! {
                     <h5>"History of "{article.title}</h5>
                     <p><A href="..">"Back to article"</A></p>
                 }
-            )
+            })
         })
     };
 
