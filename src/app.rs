@@ -75,7 +75,7 @@ use server::*;
 
 pub mod navigation {
     use super::*;
-    use crate::portlet::PortletCtx;
+    use crate::portlet::{render_portlet, PortletCtx};
 
     #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
     pub struct NavItem {
@@ -125,8 +125,7 @@ pub mod navigation {
 
     #[component]
     pub fn NavPortlet() -> impl IntoView {
-        let rs = NavPortletCtx::expect_renderer();
-        view! { <Transition>{move || rs.clone().into_render()}</Transition> }
+        render_portlet::<NavItems>()
     }
 }
 

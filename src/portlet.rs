@@ -84,3 +84,20 @@ where
         })
     }
 }
+
+pub fn render_portlet<T>() -> impl IntoView
+where
+    T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Clone
+        + std::fmt::Debug
+        + PartialEq
+        + Send
+        + Sync
+        + IntoRender
+        + 'static,
+    <T as leptos::prelude::IntoRender>::Output: RenderHtml,
+{
+    let renderer = PortletCtx::<T>::expect_renderer();
+    view! { <Transition>{move || renderer.clone().into_render()}</Transition> }
+}
