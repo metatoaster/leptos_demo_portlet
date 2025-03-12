@@ -322,15 +322,14 @@ pub fn AuthorTop() -> impl IntoView {
         },
     ));
 
+    let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
         Effect::new(move || {
-            leptos::logging::log!("Running cleanup of porlet for ArticleTop");
+            leptos::logging::log!("Running cleanup of porlet for AuthorTop");
             ws.update(|c| c.clear());
         });
     });
-
-    let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for AuthorTop");
         c.set(ArcResource::new_blocking(
@@ -457,6 +456,7 @@ pub fn ArticleTop() -> impl IntoView {
         },
     ));
 
+    let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
         Effect::new(move || {
@@ -464,8 +464,6 @@ pub fn ArticleTop() -> impl IntoView {
             ws.update(|c| c.clear());
         });
     });
-
-    let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for ArticleTop");
         c.set(ArcResource::new_blocking(
@@ -473,8 +471,8 @@ pub fn ArticleTop() -> impl IntoView {
             move |_| async move {
                 resource.await.map(|articles| {
                     articles
-                        .iter()
-                        .map(|(id, article)| NavItem {
+                        .into_iter()
+                        .map(move |(id, article)| NavItem {
                             href: format!("/article/{id}/"),
                             text: article.title.to_string(),
                         })
@@ -484,7 +482,6 @@ pub fn ArticleTop() -> impl IntoView {
             },
         ))
     });
-
     view! {
         <h3>"<ArticleTop/>"</h3>
         <Outlet/>
