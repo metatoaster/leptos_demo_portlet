@@ -228,6 +228,10 @@ pub fn App() -> impl IntoView {
                             <ArticleRoutes/>
                         </Routes>
                     </article>
+                    // Uncomment this aside after should work also
+                    <aside>
+                        <NavPortlet/>
+                    </aside>
                 </main>
             </SyncAwait>
         </Router>
@@ -329,8 +333,12 @@ pub fn AuthorTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
-        leptos::logging::log!("Running cleanup of porlet for AuthorTop");
-        ws.update(|c| c.clear());
+        // cleanup in an effect somehow functions as a delay to prevent reposition
+        // when unmounting one navigation and be replaced with another.
+        Effect::new(move || {
+            leptos::logging::log!("Running cleanup of porlet for AuthorTop");
+            ws.update(|c| c.clear());
+        });
     });
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for AuthorTop");
@@ -461,8 +469,10 @@ pub fn ArticleTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
-        leptos::logging::log!("Running cleanup of porlet for ArticleTop");
-        ws.update(|c| c.clear());
+        Effect::new(move || {
+            leptos::logging::log!("Running cleanup of porlet for ArticleTop");
+            ws.update(|c| c.clear());
+        });
     });
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for ArticleTop");
