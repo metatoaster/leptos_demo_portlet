@@ -6,17 +6,7 @@ use crate::sync_await::ssr::Waiter;
 #[derive(Clone, Debug, Default)]
 pub struct PortletCtx<T> {
     inner: Option<ArcResource<Result<T, ServerFnError>>>,
-}
-
-// `PartialEq` is required for `PortletCtx<T>` in order for it to be
-// enclosed inside a `ReadSignal`.  Since implementing `PartialEq` for
-// `ArcResource<...> is not exactly feasible, and that what this use
-// case ultimately cares about is whether or not there is some resource
-// being assigned, and thus comparison using `.is_some()` is sufficient.
-impl<T> PartialEq for PortletCtx<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner.is_some() == other.inner.is_some()
-    }
+    refresh: RwSignal<usize>,
 }
 
 impl<T> PortletCtx<T>
@@ -34,35 +24,39 @@ where
     /// may decide to not render anything.
     pub fn clear(&mut self) {
         leptos::logging::log!("PortletCtx clear");
+        self.refresh.try_update(|n| *n += 1);
         self.inner = None;
     }
 
     /// Set the resource for this portlet.
     pub fn set(&mut self, value: ArcResource<Result<T, ServerFnError>>) {
         leptos::logging::log!("PortletCtx set");
+        self.refresh.try_update(|n| *n += 1);
         self.inner = Some(value);
     }
 
+    /// The reason why there is no constructor provided and only done so
+    /// via signal is to have these contexts function as a singleton.
     pub fn provide() {
-        let (rs, ws) = signal(PortletCtx::<T> { inner: None });
+        let (rs, ws) = signal(PortletCtx::<T> {
+            inner: None,
+            refresh: RwSignal::new(0),
+        });
         provide_context(rs);
         provide_context(ws);
     }
 
     pub fn expect_renderer() -> PortletCtxRenderer<T> {
-        PortletCtxRenderer::from(expect_context::<ReadSignal<PortletCtx<T>>>())
+        let inner = expect_context::<ReadSignal<PortletCtx<T>>>();
+        let refresh = inner.get_untracked().refresh.clone();
+        PortletCtxRenderer { inner, refresh }
     }
 }
 
 #[derive(Clone)]
 pub struct PortletCtxRenderer<T>{
     inner: ReadSignal<PortletCtx<T>>,
-}
-
-impl<T> From<ReadSignal<PortletCtx<T>>> for PortletCtxRenderer<T> {
-    fn from(inner: ReadSignal<PortletCtx<T>>) -> Self {
-        Self { inner }
-    }
+    refresh: RwSignal<usize>,
 }
 
 impl<T> IntoRender for PortletCtxRenderer<T>
@@ -83,43 +77,50 @@ where
     fn into_render(self) -> Self::Output {
         #[cfg(feature = "ssr")]
         let waiter = Waiter::maybe();
-
-        leptos::logging::log!("PortletCtxRender Suspend entering");
-        let sus = Suspend::new(async move {
-            let result = Resource::new_blocking(
-                {
-                    let rs = self.inner.clone();
-                    move || rs.get()
-                },
-                move |_| {
-                    let rs = self.inner.clone();
+        let refresh = self.refresh.clone();
+        let resource = Resource::new_blocking(
+            {
+                move || {
+                    leptos::logging::log!("into_render suspend resource signaled!");
+                    refresh.get()
+                }
+            },
+            move |id| {
+                let rs = self.inner.clone();
+                leptos::logging::log!("refresh id {id}");
+                #[cfg(feature = "ssr")]
+                let waiter = waiter.clone();
+                async move {
+                    leptos::logging::log!("PortletCtxRender Suspend resource entering");
+                    leptos::logging::log!("refresh id {id}");
                     #[cfg(feature = "ssr")]
-                    let waiter = waiter.clone();
-                    async move {
-                        #[cfg(feature = "ssr")]
-                        waiter.subscribe().wait().await;
-                        let ctx = rs.get();
-                        leptos::logging::log!("portlet_ctx = {ctx:?}");
-                        if let Some(resource) = ctx.inner {
-                            Ok::<_, ServerFnError>(Some(resource.await?))
-                        } else {
-                            Ok(None)
-                        }
-                    }
-                },
-            ).await?;
+                    waiter.subscribe().wait().await;
+                    let ctx = rs.get();
+                    leptos::logging::log!("portlet_ctx.inner = {:?}", ctx.inner);
+                    let result = if let Some(resource) = ctx.inner {
+                        Ok::<_, ServerFnError>(Some(resource.await?))
+                    } else {
+                        Ok(None)
+                    };
+                    leptos::logging::log!("PortletCtxRender Suspend resource exiting");
+                    result
+                }
+            },
+        );
 
-            if let Some(result) = result {
+        Suspend::new(async move {
+            leptos::logging::log!("PortletCtxRender Suspend entering");
+            let result = resource.await?;
+            let result = if let Some(result) = result {
                 leptos::logging::log!("returning actual view");
                 Ok::<_, ServerFnError>(Some(result.into_render().into_any()))
             } else {
                 leptos::logging::log!("returning empty view");
                 Ok(None)
-            }
-
-        });
-        leptos::logging::log!("PortletCtxRender Suspend exiting");
-        sus
+            };
+            leptos::logging::log!("PortletCtxRender Suspend exiting");
+            result
+        })
     }
 }
 
