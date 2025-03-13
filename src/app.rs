@@ -8,6 +8,8 @@ use leptos_router::{
     path, MatchNestedRoutes, ParamSegment, SsrMode, StaticSegment,
 };
 
+use crate::sync_await::SyncAwait;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Author {
     pub name: String,
@@ -214,18 +216,20 @@ pub fn App() -> impl IntoView {
                     <A href="/article/">"Articles"</A>
                 </nav>
             </header>
-            <main>
-                <aside>
-                    <NavPortlet/>
-                </aside>
-                <article>
-                    <Routes fallback>
-                        <Route path=path!("") view=HomePage/>
-                        <AuthorRoutes/>
-                        <ArticleRoutes/>
-                    </Routes>
-                </article>
-            </main>
+            <SyncAwait>
+                <main>
+                    <aside>
+                        <NavPortlet/>
+                    </aside>
+                    <article>
+                        <Routes fallback>
+                            <Route path=path!("") view=HomePage/>
+                            <AuthorRoutes/>
+                            <ArticleRoutes/>
+                        </Routes>
+                    </article>
+                </main>
+            </SyncAwait>
         </Router>
     }
 }
@@ -325,10 +329,8 @@ pub fn AuthorTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(String, Author)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
-        Effect::new(move || {
-            leptos::logging::log!("Running cleanup of porlet for AuthorTop");
-            ws.update(|c| c.clear());
-        });
+        leptos::logging::log!("Running cleanup of porlet for AuthorTop");
+        ws.update(|c| c.clear());
     });
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for AuthorTop");
@@ -459,10 +461,8 @@ pub fn ArticleTop() -> impl IntoView {
     let resource = expect_context::<Resource<Result<Vec<(u32, Article)>, ServerFnError>>>();
     let ws = expect_context::<WriteSignal<NavPortletCtx>>();
     on_cleanup(move || {
-        Effect::new(move || {
-            leptos::logging::log!("Running cleanup of porlet for ArticleTop");
-            ws.update(|c| c.clear());
-        });
+        leptos::logging::log!("Running cleanup of porlet for ArticleTop");
+        ws.update(|c| c.clear());
     });
     ws.update(move |c| {
         leptos::logging::log!("Updating resource for ArticleTop");

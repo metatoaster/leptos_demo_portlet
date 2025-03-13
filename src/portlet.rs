@@ -1,8 +1,22 @@
 use leptos::prelude::*;
 
+#[cfg(feature = "ssr")]
+use crate::sync_await::ssr::Waiter;
+
 #[derive(Clone, Debug, Default)]
 pub struct PortletCtx<T> {
     inner: Option<ArcResource<Result<T, ServerFnError>>>,
+}
+
+// `PartialEq` is required for `PortletCtx<T>` in order for it to be
+// enclosed inside a `ReadSignal`.  Since implementing `PartialEq` for
+// `ArcResource<...> is not exactly feasible, and that what this use
+// case ultimately cares about is whether or not there is some resource
+// being assigned, and thus comparison using `.is_some()` is sufficient.
+impl<T> PartialEq for PortletCtx<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.is_some() == other.inner.is_some()
+    }
 }
 
 impl<T> PortletCtx<T>
@@ -41,11 +55,13 @@ where
 }
 
 #[derive(Clone)]
-pub struct PortletCtxRenderer<T>(ReadSignal<PortletCtx<T>>);
+pub struct PortletCtxRenderer<T>{
+    inner: ReadSignal<PortletCtx<T>>,
+}
 
 impl<T> From<ReadSignal<PortletCtx<T>>> for PortletCtxRenderer<T> {
-    fn from(value: ReadSignal<PortletCtx<T>>) -> Self {
-        Self(value)
+    fn from(inner: ReadSignal<PortletCtx<T>>) -> Self {
+        Self { inner }
     }
 }
 
@@ -62,26 +78,48 @@ where
         + 'static,
     <T as leptos::prelude::IntoRender>::Output: RenderHtml,
 {
-    type Output = Suspend<Result<AnyView, ServerFnError>>;
+    type Output = Suspend<Result<Option<AnyView>, ServerFnError>>;
 
     fn into_render(self) -> Self::Output {
-        Suspend::new(async move {
-            let ctx = self.0.get();
-            leptos::logging::log!("portlet_ctx = {ctx:?}");
-            if let Some(resource) = ctx.inner {
-                Ok::<_, ServerFnError>(resource.await?.into_render().into_any())
+        #[cfg(feature = "ssr")]
+        let waiter = Waiter::maybe();
+
+        leptos::logging::log!("PortletCtxRender Suspend entering");
+        let sus = Suspend::new(async move {
+            let result = Resource::new_blocking(
+                {
+                    let rs = self.inner.clone();
+                    move || rs.get()
+                },
+                move |_| {
+                    let rs = self.inner.clone();
+                    #[cfg(feature = "ssr")]
+                    let waiter = waiter.clone();
+                    async move {
+                        #[cfg(feature = "ssr")]
+                        waiter.subscribe().wait().await;
+                        let ctx = rs.get();
+                        leptos::logging::log!("portlet_ctx = {ctx:?}");
+                        if let Some(resource) = ctx.inner {
+                            Ok::<_, ServerFnError>(Some(resource.await?))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                },
+            ).await?;
+
+            if let Some(result) = result {
+                leptos::logging::log!("returning actual view");
+                Ok::<_, ServerFnError>(Some(result.into_render().into_any()))
             } else {
                 leptos::logging::log!("returning empty view");
-                // XXX somehow this dummy value works around the hydration
-                // error?
-                Ok::<_, ServerFnError>(
-                    view! {
-                        <noscript></noscript>
-                    }
-                    .into_any(),
-                )
+                Ok(None)
             }
-        })
+
+        });
+        leptos::logging::log!("PortletCtxRender Suspend exiting");
+        sus
     }
 }
 
