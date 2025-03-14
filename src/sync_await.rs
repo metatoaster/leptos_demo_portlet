@@ -63,13 +63,20 @@ pub mod ssr {
     impl WaiterHandle {
         pub async fn wait(mut self) {
             if let Some(mut inner) = self.0.take() {
+                leptos::logging::log!("waiter has handle... checking resolved status");
                 if !*inner.waiter.0.resolved.read().unwrap() {
+                    leptos::logging::log!("handle's waiter not resolved, waiting...");
                     inner
                         .receiver
                         .recv()
                         .await
                         .expect("internal error: sender not properly managed");
+                    leptos::logging::log!("handle is now resolved");
+                } else {
+                    leptos::logging::log!("handle was resolved");
                 }
+            } else {
+                leptos::logging::log!("there's no waiter!");
             }
         }
     }
@@ -88,11 +95,9 @@ use ssr::*;
 
 #[component]
 pub fn SyncAwait(children: Children) -> impl IntoView {
-    let enter = move || {
-        leptos::logging::log!("entering SyncAwait");
-        #[cfg(feature = "ssr")]
-        provide_async_wait();
-    };
+    leptos::logging::log!("entering SyncAwait");
+    #[cfg(feature = "ssr")]
+    provide_async_wait();
 
     let exit = move || {
         #[cfg(feature = "ssr")]
@@ -101,7 +106,6 @@ pub fn SyncAwait(children: Children) -> impl IntoView {
     };
 
     view! {
-        {enter}
         {children()}
         {exit}
     }
