@@ -2,9 +2,9 @@ use leptos::prelude::*;
 
 #[cfg(feature = "ssr")]
 pub mod ssr {
+    use super::*;
     use std::sync::{Arc, RwLock};
     use tokio::sync::broadcast::{channel, Receiver, Sender};
-    use super::*;
 
     #[derive(Clone)]
     struct Message;
@@ -29,11 +29,9 @@ pub mod ssr {
 
     impl MaybeWaiter {
         pub fn subscribe(&self) -> WaiterHandle {
-            WaiterHandle(self.0.clone().map(|waiter| {
-                WaiterHandleInner {
-                    waiter: waiter.clone(),
-                    receiver: waiter.0.sender.subscribe(),
-                }
+            WaiterHandle(self.0.clone().map(|waiter| WaiterHandleInner {
+                waiter: waiter.clone(),
+                receiver: waiter.0.sender.subscribe(),
             }))
         }
     }
@@ -45,10 +43,7 @@ pub mod ssr {
 
         pub fn count() {
             let waiter = expect_context::<Waiter>();
-            leptos::logging::log!(
-                "count of subscribers: {}",
-                waiter.0.sender.receiver_count(),
-            );
+            leptos::logging::log!("count of subscribers: {}", waiter.0.sender.receiver_count());
         }
 
         pub(super) fn complete() {
@@ -60,9 +55,7 @@ pub mod ssr {
                     waiter.0.sender.receiver_count(),
                 );
             } else {
-                leptos::logging::log!(
-                    "no subscribers available to receive completion"
-                );
+                leptos::logging::log!("no subscribers available to receive completion");
             }
         }
     }
@@ -71,7 +64,8 @@ pub mod ssr {
         pub async fn wait(mut self) {
             if let Some(mut inner) = self.0.take() {
                 if !*inner.waiter.0.resolved.read().unwrap() {
-                    inner.receiver
+                    inner
+                        .receiver
                         .recv()
                         .await
                         .expect("internal error: sender not properly managed");

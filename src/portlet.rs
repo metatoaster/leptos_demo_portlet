@@ -64,7 +64,7 @@ where
     let waiter = Waiter::maybe();
 
     let rs = expect_context::<ReadSignal<PortletCtx<T>>>();
-    let refresh = rs.get_untracked().refresh.clone();
+    let refresh = rs.get_untracked().refresh;
     let resource = Resource::new_blocking(
         {
             move || {
@@ -73,7 +73,6 @@ where
             }
         },
         move |id| {
-            let rs = rs.clone();
             leptos::logging::log!("refresh id {id}");
             #[cfg(feature = "ssr")]
             let waiter = waiter.clone();
@@ -95,19 +94,21 @@ where
         },
     );
 
-    let suspend = move || { Suspend::new(async move {
-        leptos::logging::log!("PortletCtxRender Suspend entering");
-        let result = resource.await?;
-        let result = if let Some(result) = result {
-            leptos::logging::log!("returning actual view");
-            Ok::<_, ServerFnError>(Some(result.into_render().into_any()))
-        } else {
-            leptos::logging::log!("returning empty view");
-            Ok(None)
-        };
-        leptos::logging::log!("PortletCtxRender Suspend exiting");
-        result
-    })};
+    let suspend = move || {
+        Suspend::new(async move {
+            leptos::logging::log!("PortletCtxRender Suspend entering");
+            let result = resource.await?;
+            let result = if let Some(result) = result {
+                leptos::logging::log!("returning actual view");
+                Ok::<_, ServerFnError>(Some(result.into_render().into_any()))
+            } else {
+                leptos::logging::log!("returning empty view");
+                Ok(None)
+            };
+            leptos::logging::log!("PortletCtxRender Suspend exiting");
+            result
+        })
+    };
 
     view! { <Transition>{move || suspend() }</Transition> }
 }
