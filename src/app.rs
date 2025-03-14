@@ -134,6 +134,7 @@ pub mod navigation {
 use navigation::*;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
+    leptos::logging::log!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
     view! {
         <!DOCTYPE html>
         <html lang="en">
@@ -229,9 +230,9 @@ pub fn App() -> impl IntoView {
                         </Routes>
                     </article>
                     // Uncomment this aside after should work also
-                    <aside>
-                        <NavPortlet/>
-                    </aside>
+                    // <aside>
+                    //     <NavPortlet/>
+                    // </aside>
                 </main>
             </SyncAwait>
         </Router>
